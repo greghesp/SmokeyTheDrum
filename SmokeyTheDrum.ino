@@ -179,5 +179,6 @@ void fanController() {
     Serial.println("Turned fan off.");
     StillCooking = false;
     Serial.println("#### Finished! Time to pull");
+    Blynk.notify("Hey, your cook has finished! Time to pull.");
   }
 }
