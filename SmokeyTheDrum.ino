@@ -25,7 +25,7 @@ Adafruit_MAX31865 foodProbe = Adafruit_MAX31865(D4,D1,D2,D3);
 Adafruit_MAX31865 ambientProbe = Adafruit_MAX31865(D5,D1,D2,D3);
 
 // Declare Variables
-int targetTemp = 125; // Target Ambient Temperature
+int ambientTargetTemp = 125; // Target Ambient Temperature
 int tempBelowTarget = 30;
 int pullTemp = 95; // Meat Temperature to remove food
 float foodTemperature = 25;
@@ -33,8 +33,6 @@ float ambientTemperature = 25;
 float foodTemperature_Last = 25;
 float ambientTemperature_Last = 25;
 bool StillCooking = true;
-float tempWeightedAvg = 25;
-float tempWeightedAvgLast= 25;
 int fanSpeed = 400;
 int minSpeed = 15;
 
@@ -50,8 +48,8 @@ PID myPID(&Input, &Output, &Setpoint, consKp, consKi, consKd, DIRECT);
 
 BLYNK_WRITE(V0) {   //pulls data from Blynk app for target temp
   int targetTempBlynk = param.asInt();
-  targetTemp = targetTempBlynk;
-  Serial.printf("New target temperature = %d\n",targetTemp);
+  ambientTargetTemp = targetTempBlynk;
+  Serial.printf("New target temperature = %d\n",ambientTargetTemp);
 }
 BLYNK_WRITE(V1) { //pulls data from Blynk app for pull temp
   int pullTempBlynk = param.asInt();
@@ -65,7 +63,7 @@ BLYNK_READ(V3){
   Blynk.virtualWrite(V3, tempBelowTarget);
 }
 BLYNK_READ(V4){ //sends Blynk app the data for the three sensors
-  Blynk.virtualWrite(V4, tempWeightedAvgLast);
+  Blynk.virtualWrite(V4, ambientTemperature_Last);
 }
 BLYNK_READ(V5){ //sends Blynk app the data for the food probe
   Blynk.virtualWrite(V5, foodTemperature_Last);
@@ -82,8 +80,8 @@ void setup() {
   connectToWifi();
 
   //Setup PID
-  Input = tempWeightedAvgLast;
-  Setpoint = targetTemp;
+  Input = ambientTemperature_Last;
+  Setpoint = ambientTargetTemp;
   myPID.SetMode(AUTOMATIC);
   
   //start OTA
@@ -117,13 +115,11 @@ void readTempSensors(){
   delay(100);
   ambientTemperature = ambientProbe.temperature(100.0, 430.0);
 
-  tempWeightedAvg = (ambientTemperature - 45); //-45 to compensate for center drum temperature difference
-  foodTemperature_Last = (2 * foodTemperature_Last + foodTemperature)/3;
-  ambientTemperature_Last = (2 * ambientTemperature_Last + ambientTemperature)/3;
-  tempWeightedAvgLast = (2 * tempWeightedAvgLast + tempWeightedAvg)/3;
+  foodTemperature_Last = foodTemperature;
+  ambientTemperature_Last = ambientTemperature;
   tempBelowTarget = pullTemp - foodTemperature_Last;
 
-  Serial.printf("pull\t|target\t|food\t|ambient\n%d\t|%d\t|%d\t%d\n\n",(int)pullTemp,(int)targetTemp,(int)foodTemperature,(int)ambientTemperature);
+  Serial.printf("pull\t|target\t|food\t|ambient\n%d\t|%d\t|%d\t|%d\n\n",(int)pullTemp,(int)ambientTargetTemp,(int)foodTemperature,(int)ambientTemperature);
 }
 
 void connectToWifi() {
@@ -140,8 +136,8 @@ void fanController() {
   
   // Food Temp is more than 1 degree below target
   if (tempBelowTarget > 1) { 
-    Input = tempWeightedAvgLast;
-    Setpoint = targetTemp;
+    Input = ambientTemperature_Last;
+    Setpoint = ambientTargetTemp;
     double gap = Setpoint - Input; // average temp distance away from target temperature
     Serial.println(gap);
 
@@ -173,8 +169,7 @@ void fanController() {
       }
       //analogWrite(fanControlpin, fanSpeed);
       digitalWrite(LED_BUILTIN, LOW);
-      Serial.println("** Turned fan on");
-
+      Serial.printf("** Turned fan on %d%. \n",(int)(fanSpeed/10));
     }
   } else
   {
